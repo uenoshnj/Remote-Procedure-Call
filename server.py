@@ -94,7 +94,6 @@ def connection():
 
 
 def handleRequest(request):
-    # なぜtryを入れる？
     try:
         result = functions[request['method']](*request['params'])
         return result
