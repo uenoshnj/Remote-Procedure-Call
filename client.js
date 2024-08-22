@@ -1,55 +1,83 @@
+const net = require('net');
 
-function connect(){
+const server_address = './server_socket_file';
+const client = new net.Socket(server_address);
 
+// リクエスト用のオブジェクト
+const request = {
+    method: '',
+    params: [],
+    id: 0
 }
 
-function inputMethod(){
-    let method = prompt("メソッドを入力してください。");
-    return method;
-}
-
-function inputArgs(method){
-    let argStr = prompt("引数を入力してください。");
-    let argArr = [];
-    switch (method) {
-        case 'floor':
-            argArr.push(Number(argStr));
-            break;
-        case 'nroot':
-            argArr = argStr.split(',').map(Number);
-            break;
-        case 'reverse':
-            argArr.push(argStr);
-            break;
-        case 'validAnagram':
-            argArr = argStr.split(',');
-            break;
-        case 'sort':
-            argArr = argStr.split(',');
-            break;
-        default:
-            throw new Error("有効なメソッドを入力してください。")
+function handleInput(params) {
+    params = params.replaceAll(' ', '');
+    if (params.indexOf(',') !== -1) {
+        if(isFinite(params.split(',')[0])) {
+            return params.split(',').map(Number);
+        } else {
+            return params.split(',');
+        }
+    } else if(isFinite(params)) {
+        return Number(params);
+    } else {
+        return params;
     }
-    return argArr;
 }
 
-function argType(argArr){
-    let argTypes = [];
-    for (let i = 0; i < argArr.lenth; i++) {
-        argTypes.push(typeof argArr[i]);
-    }
-    return argTypes;
+// ユーザの入力情報取得
+function readUserInput(question) {
+    const readline = require('readline');
+
+    const { stdin: input, stdout: output, exit } = require('process');
+
+    const rl = readline.createInterface({ input, output });
+
+    return new Promise((resolve, reject) => {
+        rl.question(question, (answer) => {
+            resolve(handleInput(answer));
+            rl.close();
+        })
+    });
 }
 
+(async function main() {
+    request.method = await readUserInput('Enter the method: ');
+    request.params = await readUserInput('Enter the params: ');
+    request.id++;
+    const jsondata = JSON.stringify(request);
+
+    // サーバへ接続
+    client.connect(server_address, () => {
+        console.log('Connected to server');
+
+        // サーバにデータを送信
+        client.write(jsondata);
+        console.log(`send data`, jsondata, ` to ${server_address}`);
+
+        console.log(`
+-----------------------------------
+wait a minute...
+-----------------------------------
+        `);
+    });
 
 
-function request(){
-    method = inputMethod();
-    console.log(method);
-    args = inputArgs(method);
-    console.log(args);
-    argTypes = argType(args);
-    console.log(argTypes);
-}
+    // サーバからデータを受信
+    client.on('data', (data) => {
+        const response = JSON.parse(data);
 
-request();
+        if (response.error) {
+            console.error('Error: ', response.error);
+        } else {
+            console.log('Received data')
+            console.log(response);
+        }
+    });
+
+    // 接続を閉じる
+    client.on('close', () => {
+        console.log('Connection closed.')
+    });
+    return false;
+})();

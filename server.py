@@ -2,23 +2,35 @@ import os
 import socket
 import math
 import json
+import sys
 
 # 実数xを最も近い整数に切り捨てる
 def floor(x):
-    return math.floor(x)
+    res = math.floor(x)
+    print(f'Truncate real {x} to the nearest integer')
+    return [res, type(res).__name__]
 
 # xのn乗根を計算する
-def nroot(n, x):
-    return math.pow(x, 1/n)
+def nroot(array):
+    n = array[0]
+    x = array[1]
+    res = math.pow(x, 1/n)
+    print(f'Compute {n}-square root of {x}')
+    return [res, type(res).__name__]
 
 # 文字列を逆順にする
 def reverse(s):
-    return s[::-1]
+    print('reversing the string...')
+    return [s[::-1], type(s).__name__]
 
 # 2つの文字列がアナグラムであるかどうかを判断する
-def validAnagram(s1, s2):
+def validAnagram(array):
+    print('Check Anagram...')
+    s1 = array[0]
+    s2 = array[1]
+    res = False
     if len(s1) != len(s2):
-        return False
+        res = False
     
     hash = {}
     for s in s1:
@@ -31,16 +43,17 @@ def validAnagram(s1, s2):
         if c in hash:
             hash[c] -= 1
         else:
-            return False
+            res = False
     
     if max(hash.values()) == 0:
-        return True
+        res = True
     
-    return False
+    return [res, type(res).__name__]
 
 # 配列をソートする
 def sort(strArr):
-    return sorted(strArr)
+    print('sort string array')
+    return [sorted(strArr), type(strArr).__name__]
 
 # 関数の目次
 functions = {
@@ -51,17 +64,18 @@ functions = {
     "sort": sort
 }
 
+response = {
+    "results": "",
+    "result_type": "",
+    "id": 0
+}
+
 # サーバとクライアントの接続
 def connection():
     # UNIXソケットをストリームモードで作成
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     
-    # UNIXソケットのパスが記載されたjsonファイルの読み込み
-    config = json.load(open('config.json'))
-
-    # UNIXソケットのパスを設定
-    server_address = config['server_address']
-
+    server_address = './server_socket_file'
     # 以前の接続の削除
     try:
         os.unlink(server_address)
@@ -71,7 +85,7 @@ def connection():
     print(f'Starting up on {server_address}')
     
     # サーバアドレスにソケットを接続する
-    sock.bind(config['server_address'])
+    sock.bind(server_address)
 
     sock.listen(1)
 
@@ -81,21 +95,39 @@ def connection():
 
         try:
             while True:
+                
                 data = connection.recv(4096)
-
+                # データがあればデータの処理を行い、クライアントに返却する。
                 if data:
-                    request = json.loads(data)
-                    handleRequest(request)
+                    request = json.loads(data.decode('utf-8'))
+                    print(f'received data: {request}')
+
+                    funcResponse = handleRequest(request)
+
+                    # responseの作成
+                    response["results"] = funcResponse[0]
+                    response["result_type"] = funcResponse[1]
+                    response["id"] += 1
+                    print(response)
+                    connection.send(json.dumps(response).encode())
+                    connection.shutdown(1)
+
                 else:
                     break
         finally:
             print('Closing current connection')
+            connection.shutdown(1)
             connection.close()
+            sys.exit()
 
 
+
+# リクエストを処理する
 def handleRequest(request):
     try:
-        result = functions[request['method']](*request['params'])
+        result = functions[request['method']](request['params'])
         return result
     except Exception as error:
         raise error
+
+connection()
